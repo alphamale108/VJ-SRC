@@ -5,9 +5,9 @@
 import os
 
 # Login feature, if you want then True , if you don't want then False
-LOGIN_SYSTEM = bool(os.environ.get('LOGIN_SYSTEM', True)) # True or False
+LOGIN_SYSTEM = bool(os.environ.get('LOGIN_SYSTEM', False)) # True or False
 
-if LOGIN_SYSTEM == False:
+if LOGIN_SYSTEM == True:
     # if login system is False then fill your tg account session below 
     STRING_SESSION = os.environ.get("STRING_SESSION", "")
 else:
@@ -36,7 +36,7 @@ DB_URI = os.environ.get("DB_URI", "") # Warning - Give Db uri in deploy server e
 DB_NAME = os.environ.get("DB_NAME", "vjsavecontentbot")
 
 # Increase time as much as possible to avoid floodwait, spamming and tg account ban issues.
-WAITING_TIME = int(os.environ.get("WAITING_TIME", "10")) # time in seconds
+WAITING_TIME = int(os.environ.get("WAITING_TIME", "50")) # time in seconds
 
 # If You Want Error Message In Your Personal Message Then Turn It True Else If You Don't Want Then Flase
 ERROR_MESSAGE = bool(os.environ.get('ERROR_MESSAGE', True))
