@@ -303,67 +303,79 @@ async def save(client: Client, message: Message):
         )
 
     # =========================
-    # LOGIN SYSTEM
+    # DETERMINE IF SESSION NEEDED
+    # =========================
+    
+    # Check if it's a private channel or bot
+    is_private = "https://t.me/c/" in message.text or "https://t.me/b/" in message.text
+    
+    acc = None  # User's session (for private content)
+    
+    # =========================
+    # LOGIN SYSTEM (Only for private content)
     # =========================
 
-    acc = None  # Initialize acc
-
-    if LOGIN_SYSTEM == True:
-
-        user_data = await db.get_session(
-            message.from_user.id
-        )
-
-        if user_data is None:
-
-            await message.reply(
-                "**For downloading restricted content "
-                "you have to /login first.**"
-            )
-
-            return
-
-        api_id = int(
-            await db.get_api_id(
+    if is_private:
+        
+        if LOGIN_SYSTEM == True:
+            
+            user_data = await db.get_session(
                 message.from_user.id
             )
-        )
 
-        api_hash = await db.get_api_hash(
-            message.from_user.id
-        )
+            if user_data is None:
 
-        try:
+                await message.reply(
+                    "**🔒 This is a private channel/bot. "
+                    "You need to /login first to access restricted content.**"
+                )
 
-            acc = Client(
-                "saverestricted",
-                session_string=user_data,
-                api_hash=api_hash,
-                api_id=api_id
+                return
+
+            api_id = int(
+                await db.get_api_id(
+                    message.from_user.id
+                )
             )
 
-            await acc.connect()
-
-        except Exception as e:
-
-            return await message.reply(
-                f"**Your Login Session Expired. "
-                f"So /logout First Then Login Again By - /login**\n"
-                f"Error: {e}"
+            api_hash = await db.get_api_hash(
+                message.from_user.id
             )
 
-    else:
+            try:
 
-        # Use main bot session for public links
-        if TechVJUser is None:
-            await client.send_message(
-                message.chat.id,
-                "**String Session is not Set. Cannot process restricted content.**",
-                reply_to_message_id=message.id
-            )
-            return
+                acc = Client(
+                    "saverestricted",
+                    session_string=user_data,
+                    api_hash=api_hash,
+                    api_id=api_id
+                )
+
+                await acc.connect()
+
+            except Exception as e:
+
+                return await message.reply(
+                    f"**Your Login Session Expired. "
+                    f"So /logout First Then Login Again By - /login**\n"
+                    f"Error: {e}"
+                )
         
-        acc = TechVJUser
+        else:
+            # If LOGIN_SYSTEM is False but it's private content
+            if TechVJUser is None:
+                await client.send_message(
+                    message.chat.id,
+                    "**🔒 This is a private channel/bot. "
+                    "String Session is not Set in config.**",
+                    reply_to_message_id=message.id
+                )
+                return
+            
+            acc = TechVJUser
+    
+    # For public content, we don't need any session
+    # acc remains None, and we'll use client directly
 
     # =========================
     # START BATCH
@@ -416,8 +428,8 @@ async def save(client: Client, message: Message):
 
                     await client.send_message(
                         message.chat.id,
-                        "**This type of link requires "
-                        "a String Session. Please /login first.**",
+                        "**🔒 This is a private channel. "
+                        "You need to /login first or set String Session.**",
                         reply_to_message_id=message.id
                     )
 
@@ -457,8 +469,8 @@ async def save(client: Client, message: Message):
 
                     await client.send_message(
                         message.chat.id,
-                        "**This type of link requires "
-                        "a String Session. Please /login first.**",
+                        "**🔒 This is a bot link. "
+                        "You need to /login first or set String Session.**",
                         reply_to_message_id=message.id
                     )
 
@@ -487,7 +499,7 @@ async def save(client: Client, message: Message):
                         )
 
             # =========================
-            # PUBLIC CHANNEL
+            # PUBLIC CHANNEL (No session needed!)
             # =========================
 
             else:
@@ -529,6 +541,7 @@ async def save(client: Client, message: Message):
 
                 try:
 
+                    # Just copy the message - no session needed!
                     await client.copy_message(
                         message.chat.id,
                         msg.chat.id,
@@ -538,30 +551,13 @@ async def save(client: Client, message: Message):
 
                 except Exception as e:
 
-                    # If can't copy, try using account
-                    if acc is not None:
-                        try:
-                            await handle_private(
-                                client,
-                                acc,
-                                message,
-                                username,
-                                msgid
-                            )
-                        except Exception as e2:
-                            if ERROR_MESSAGE == True:
-                                await client.send_message(
-                                    message.chat.id,
-                                    f"Error on message {msgid}: {e2}",
-                                    reply_to_message_id=message.id
-                                )
-                    else:
-                        if ERROR_MESSAGE == True:
-                            await client.send_message(
-                                message.chat.id,
-                                f"Unable to copy public post {msgid}: {e}",
-                                reply_to_message_id=message.id
-                            )
+                    if ERROR_MESSAGE == True:
+
+                        await client.send_message(
+                            message.chat.id,
+                            f"Unable to copy public post {msgid}: {e}",
+                            reply_to_message_id=message.id
+                        )
 
             processed_count += 1
 
@@ -584,10 +580,10 @@ async def save(client: Client, message: Message):
     finally:
 
         # =========================
-        # DISCONNECT USER SESSION
+        # DISCONNECT USER SESSION (Only if we created one)
         # =========================
 
-        if LOGIN_SYSTEM == True and acc is not None:
+        if is_private and LOGIN_SYSTEM == True and acc is not None:
 
             try:
 
