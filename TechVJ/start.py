@@ -125,24 +125,40 @@ async def save(client: Client, message: Message):
         except:
             toID = fromID
 
-        if LOGIN_SYSTEM == True:
-            user_data = await db.get_session(message.from_user.id)
-            if user_data is None:
-                await message.reply("**For Downloading Restricted Content You Have To /login First.**")
-                return
-            api_id = int(await db.get_api_id(message.from_user.id))
-            api_hash = await db.get_api_hash(message.from_user.id)
-            try:
-                acc = Client("saverestricted", session_string=user_data, api_hash=api_hash, api_id=api_id)
-                await acc.connect()
-            except:
-                return await message.reply("**Your Login Session Expired. So /logout First Then Login Again By - /login**")
-        else:
+    if LOGIN_SYSTEM == True:
+       user_data = await db.get_session(message.from_user.id)
+
+       if user_data is None:
+         await message.reply(
+            "**For Downloading Restricted Content You Have To /login First.**"
+         )
+         return
+
+      api_id = int(await db.get_api_id(message.from_user.id))
+      api_hash = await db.get_api_hash(message.from_user.id)
+
+      try:
+        acc = Client(
+            "saverestricted",
+            session_string=user_data,
+            api_hash=api_hash,
+            api_id=api_id
+          )
+        await acc.connect()
+      except:
+        return await message.reply(
+            "**Your Login Session Expired. So /logout First Then Login Again By - /login**"
+         )
+
+    else:
+    # No String Session required for normal public links
+      acc = TechVJUser
+      '''  else:
             if TechVJUser is None:
                 await client.send_message(message.chat.id, f"**String Session is not Set**", reply_to_message_id=message.id)
                 return
             acc = TechVJUser
-				
+	'''		
         batch_temp.IS_BATCH[message.from_user.id] = False
         for msgid in range(fromID, toID+1):
             if batch_temp.IS_BATCH.get(message.from_user.id): break
@@ -166,23 +182,82 @@ async def save(client: Client, message: Message):
                         await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
             
             # public
-            else:
-                username = datas[3]
+            # public
+else:
+    username = datas[3]
 
-                try:
-                    msg = await client.get_messages(username, msgid)
-                except UsernameNotOccupied: 
-                    await client.send_message(message.chat.id, "The username is not occupied by anyone", reply_to_message_id=message.id)
-                    return
-                try:
-                    await client.copy_message(message.chat.id, msg.chat.id, msg.id, reply_to_message_id=message.id)
-                except:
-                    try:    
-                        await handle_private(client, acc, message, username, msgid)               
-                    except Exception as e:
-                        if ERROR_MESSAGE == True:
-                            await client.send_message(message.chat.id, f"Error: {e}", reply_to_message_id=message.id)
+    try:
+        msg = await client.get_messages(username, msgid)
+    except UsernameNotOccupied:
+        await client.send_message(
+            message.chat.id,
+            "The username is not occupied by anyone",
+            reply_to_message_id=message.id
+        )
+        return
 
+    try:
+        await client.copy_message(
+            message.chat.id,
+            msg.chat.id,
+            msg.id,
+            reply_to_message_id=message.id
+        )
+
+    except Exception as e:
+        # If the bot cannot directly copy the public post,
+        # a String Session would be required for the fallback.
+        if TechVJUser is None:
+            if ERROR_MESSAGE == True:
+                await client.send_message(
+                    message.chat.id,
+                    f"Unable to copy this public post with the bot account: {e}",
+                    reply_to_message_id=message.id
+                )
+    # public
+else:
+    username = datas[3]
+
+    try:
+        msg = await client.get_messages(username, msgid)
+    except UsernameNotOccupied:
+        await client.send_message(
+            message.chat.id,
+            "The username is not occupied by anyone",
+            reply_to_message_id=message.id
+        )
+        return
+
+    try:
+        await client.copy_message(
+            message.chat.id,
+            msg.chat.id,
+            msg.id,
+            reply_to_message_id=message.id
+        )
+
+    except Exception as e:
+        # If the bot cannot directly copy the public post,
+        # a String Session would be required for the fallback.
+        if TechVJUser is None:
+            if ERROR_MESSAGE == True:
+                await client.send_message(
+                    message.chat.id,
+                    f"Unable to copy this public post with the bot account: {e}",
+                    reply_to_message_id=message.id
+                )
+        else:
+            try:
+                await handle_private(
+                    client, TechVJUser, message, username, msgid
+                )
+            except Exception as e:
+                if ERROR_MESSAGE == True:
+                    await client.send_message(
+                        message.chat.id,
+                        f"Error: {e}",
+                        reply_to_message_id=message.id
+                    )
             # wait time
             await asyncio.sleep(WAITING_TIME)
         if LOGIN_SYSTEM == True:
