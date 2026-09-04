@@ -143,7 +143,8 @@ async def send_start(client: Client, message: Message):
         text=(
             f"<b>👋 Hi {message.from_user.mention}, "
             f"I am Save Restricted Content Bot, I can send you "
-            f"content by its post link.\n\n"
+            f"restricted content by its post link.\n\n"
+            f"For downloading restricted content /login first.\n\n"
             f"Know how to use bot by - /help</b>"
         ),
         reply_markup=reply_markup,
@@ -291,9 +292,21 @@ async def save(client: Client, message: Message):
 
         toID = fromID
 
+    # Check if it's a batch
+    is_batch = (toID - fromID) > 0
+    if is_batch:
+        await client.send_message(
+            message.chat.id,
+            f"**📦 Processing Batch:** {fromID} to {toID}\n"
+            f"Total: {toID - fromID + 1} messages\n"
+            f"Use /cancel to stop."
+        )
+
     # =========================
     # LOGIN SYSTEM
     # =========================
+
+    acc = None  # Initialize acc
 
     if LOGIN_SYSTEM == True:
 
@@ -331,18 +344,25 @@ async def save(client: Client, message: Message):
 
             await acc.connect()
 
-        except Exception:
+        except Exception as e:
 
             return await message.reply(
-                "**Your Login Session Expired. "
-                "So /logout First Then Login Again By - /login**"
+                f"**Your Login Session Expired. "
+                f"So /logout First Then Login Again By - /login**\n"
+                f"Error: {e}"
             )
 
     else:
 
-        # No user String Session required
-        # for normal public links.
-
+        # Use main bot session for public links
+        if TechVJUser is None:
+            await client.send_message(
+                message.chat.id,
+                "**String Session is not Set. Cannot process restricted content.**",
+                reply_to_message_id=message.id
+            )
+            return
+        
         acc = TechVJUser
 
     # =========================
@@ -352,6 +372,9 @@ async def save(client: Client, message: Message):
     batch_temp.IS_BATCH[
         message.from_user.id
     ] = False
+
+    processed_count = 0
+    total_messages = toID - fromID + 1
 
     try:
 
@@ -367,7 +390,21 @@ async def save(client: Client, message: Message):
             if batch_temp.IS_BATCH.get(
                 message.from_user.id
             ):
+                await client.send_message(
+                    message.chat.id,
+                    "**⛔ Batch Cancelled by User.**"
+                )
                 break
+
+            # =========================
+            # PROGRESS UPDATE (for batches)
+            # =========================
+            
+            if is_batch and (processed_count % 5 == 0 or processed_count == total_messages - 1):
+                await client.send_message(
+                    message.chat.id,
+                    f"**📊 Progress:** {processed_count}/{total_messages} messages processed"
+                )
 
             # =========================
             # PRIVATE CHANNEL
@@ -380,7 +417,7 @@ async def save(client: Client, message: Message):
                     await client.send_message(
                         message.chat.id,
                         "**This type of link requires "
-                        "a String Session.**",
+                        "a String Session. Please /login first.**",
                         reply_to_message_id=message.id
                     )
 
@@ -406,7 +443,7 @@ async def save(client: Client, message: Message):
 
                         await client.send_message(
                             message.chat.id,
-                            f"Error: {e}",
+                            f"Error on message {msgid}: {e}",
                             reply_to_message_id=message.id
                         )
 
@@ -421,7 +458,7 @@ async def save(client: Client, message: Message):
                     await client.send_message(
                         message.chat.id,
                         "**This type of link requires "
-                        "a String Session.**",
+                        "a String Session. Please /login first.**",
                         reply_to_message_id=message.id
                     )
 
@@ -445,7 +482,7 @@ async def save(client: Client, message: Message):
 
                         await client.send_message(
                             message.chat.id,
-                            f"Error: {e}",
+                            f"Error on message {msgid}: {e}",
                             reply_to_message_id=message.id
                         )
 
@@ -468,7 +505,7 @@ async def save(client: Client, message: Message):
 
                     await client.send_message(
                         message.chat.id,
-                        "The username is not occupied by anyone.",
+                        f"Username '{username}' is not occupied by anyone.",
                         reply_to_message_id=message.id
                     )
 
@@ -480,7 +517,7 @@ async def save(client: Client, message: Message):
 
                         await client.send_message(
                             message.chat.id,
-                            f"Error getting public post: {e}",
+                            f"Error getting public post {msgid}: {e}",
                             reply_to_message_id=message.id
                         )
 
@@ -501,21 +538,48 @@ async def save(client: Client, message: Message):
 
                 except Exception as e:
 
-                    if ERROR_MESSAGE == True:
+                    # If can't copy, try using account
+                    if acc is not None:
+                        try:
+                            await handle_private(
+                                client,
+                                acc,
+                                message,
+                                username,
+                                msgid
+                            )
+                        except Exception as e2:
+                            if ERROR_MESSAGE == True:
+                                await client.send_message(
+                                    message.chat.id,
+                                    f"Error on message {msgid}: {e2}",
+                                    reply_to_message_id=message.id
+                                )
+                    else:
+                        if ERROR_MESSAGE == True:
+                            await client.send_message(
+                                message.chat.id,
+                                f"Unable to copy public post {msgid}: {e}",
+                                reply_to_message_id=message.id
+                            )
 
-                        await client.send_message(
-                            message.chat.id,
-                            f"Unable to copy this public post: {e}",
-                            reply_to_message_id=message.id
-                        )
+            processed_count += 1
 
             # =========================
             # WAIT
             # =========================
 
-            await asyncio.sleep(
-                WAITING_TIME
-            )
+            if is_batch and processed_count < total_messages:
+                await asyncio.sleep(
+                    WAITING_TIME
+                )
+
+    except Exception as e:
+        await client.send_message(
+            message.chat.id,
+            f"**❌ Error in batch processing:** {e}",
+            reply_to_message_id=message.id
+        )
 
     finally:
 
@@ -523,7 +587,7 @@ async def save(client: Client, message: Message):
         # DISCONNECT USER SESSION
         # =========================
 
-        if LOGIN_SYSTEM == True:
+        if LOGIN_SYSTEM == True and acc is not None:
 
             try:
 
@@ -541,6 +605,18 @@ async def save(client: Client, message: Message):
             message.from_user.id
         ] = True
 
+        # =========================
+        # COMPLETION MESSAGE
+        # =========================
+
+        if is_batch:
+            status = "✅" if processed_count == total_messages else "⚠️"
+            await client.send_message(
+                message.chat.id,
+                f"{status} **Batch Processing Complete!**\n"
+                f"Processed: {processed_count}/{total_messages} messages"
+            )
+
 
 # =========================
 # HANDLE PRIVATE
@@ -553,6 +629,15 @@ async def handle_private(
     chatid,
     msgid: int
 ):
+
+    # Check if acc is None
+    if acc is None:
+        await client.send_message(
+            message.chat.id,
+            "**Error: No active session. Please /login first.**",
+            reply_to_message_id=message.id
+        )
+        return
 
     msg: Message = await acc.get_messages(
         chatid,
@@ -631,7 +716,7 @@ async def handle_private(
 
     smsg = await client.send_message(
         message.chat.id,
-        "**Downloading**",
+        f"**📥 Downloading** message {msgid}",
         reply_to_message_id=message.id
     )
 
@@ -680,6 +765,8 @@ async def handle_private(
     if batch_temp.IS_BATCH.get(
         message.from_user.id
     ):
+        if file and os.path.exists(file):
+            os.remove(file)
         return
 
     asyncio.create_task(
@@ -703,6 +790,8 @@ async def handle_private(
     if batch_temp.IS_BATCH.get(
         message.from_user.id
     ):
+        if file and os.path.exists(file):
+            os.remove(file)
         return
 
     # =========================
