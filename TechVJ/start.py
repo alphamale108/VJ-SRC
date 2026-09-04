@@ -5,6 +5,7 @@
 import os
 import asyncio
 import pyrogram
+import time
 
 from pyrogram import Client, filters, enums
 from pyrogram.errors import (
@@ -386,7 +387,12 @@ async def save(client: Client, message: Message):
     ] = False
 
     processed_count = 0
+    failed_count = 0
     total_messages = toID - fromID + 1
+    start_time = time.time()
+    
+    # Track errors for final report
+    errors = []
 
     try:
 
@@ -407,16 +413,6 @@ async def save(client: Client, message: Message):
                     "**⛔ Batch Cancelled by User.**"
                 )
                 break
-
-            # =========================
-            # PROGRESS UPDATE (for batches)
-            # =========================
-            
-            if is_batch and (processed_count % 5 == 0 or processed_count == total_messages - 1):
-                await client.send_message(
-                    message.chat.id,
-                    f"**📊 Progress:** {processed_count}/{total_messages} messages processed"
-                )
 
             # =========================
             # PRIVATE CHANNEL
@@ -451,11 +447,14 @@ async def save(client: Client, message: Message):
 
                 except Exception as e:
 
+                    failed_count += 1
+                    error_msg = f"Message {msgid}: {str(e)}"
+                    errors.append(error_msg)
+                    
                     if ERROR_MESSAGE == True:
-
                         await client.send_message(
                             message.chat.id,
-                            f"Error on message {msgid}: {e}",
+                            f"❌ Error on message {msgid}: {e}",
                             reply_to_message_id=message.id
                         )
 
@@ -490,11 +489,14 @@ async def save(client: Client, message: Message):
 
                 except Exception as e:
 
+                    failed_count += 1
+                    error_msg = f"Message {msgid}: {str(e)}"
+                    errors.append(error_msg)
+                    
                     if ERROR_MESSAGE == True:
-
                         await client.send_message(
                             message.chat.id,
-                            f"Error on message {msgid}: {e}",
+                            f"❌ Error on message {msgid}: {e}",
                             reply_to_message_id=message.id
                         )
 
@@ -520,20 +522,21 @@ async def save(client: Client, message: Message):
                         f"Username '{username}' is not occupied by anyone.",
                         reply_to_message_id=message.id
                     )
-
                     break
 
                 except Exception as e:
 
+                    failed_count += 1
+                    error_msg = f"Message {msgid}: {str(e)}"
+                    errors.append(error_msg)
+                    
                     if ERROR_MESSAGE == True:
-
                         await client.send_message(
                             message.chat.id,
                             f"Error getting public post {msgid}: {e}",
                             reply_to_message_id=message.id
                         )
-
-                    break
+                    continue
 
                 # =========================
                 # COPY PUBLIC MESSAGE
@@ -551,8 +554,11 @@ async def save(client: Client, message: Message):
 
                 except Exception as e:
 
+                    failed_count += 1
+                    error_msg = f"Message {msgid}: {str(e)}"
+                    errors.append(error_msg)
+                    
                     if ERROR_MESSAGE == True:
-
                         await client.send_message(
                             message.chat.id,
                             f"Unable to copy public post {msgid}: {e}",
@@ -602,15 +608,40 @@ async def save(client: Client, message: Message):
         ] = True
 
         # =========================
-        # COMPLETION MESSAGE
+        # FINAL COMPLETION REPORT (Only for batches)
         # =========================
 
         if is_batch:
-            status = "✅" if processed_count == total_messages else "⚠️"
+            end_time = time.time()
+            elapsed_time = end_time - start_time
+            minutes = int(elapsed_time // 60)
+            seconds = int(elapsed_time % 60)
+            time_str = f"{minutes}m {seconds}s" if minutes > 0 else f"{seconds}s"
+            
+            success_count = processed_count - failed_count
+            
+            # Build completion message
+            completion_msg = f"**✅ Batch Processing Complete!**\n\n"
+            completion_msg += f"📊 **Statistics:**\n"
+            completion_msg += f"├ Total Messages: {total_messages}\n"
+            completion_msg += f"├ Successfully Sent: {success_count}\n"
+            completion_msg += f"├ Failed: {failed_count}\n"
+            completion_msg += f"└ Time Taken: {time_str}\n\n"
+            
+            if failed_count > 0:
+                completion_msg += f"⚠️ **Failed Messages:**\n"
+                # Show first 5 errors
+                for i, error in enumerate(errors[:5], 1):
+                    completion_msg += f"{i}. {error}\n"
+                if len(errors) > 5:
+                    completion_msg += f"... and {len(errors) - 5} more errors\n"
+            
+            if batch_temp.IS_BATCH.get(message.from_user.id) == True and processed_count < total_messages:
+                completion_msg += "\n⛔ **Batch was cancelled before completion**"
+            
             await client.send_message(
                 message.chat.id,
-                f"{status} **Batch Processing Complete!**\n"
-                f"Processed: {processed_count}/{total_messages} messages"
+                completion_msg
             )
 
 
