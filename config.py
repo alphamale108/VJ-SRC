@@ -35,6 +35,15 @@ CHANNEL_ID = os.environ.get("CHANNEL_ID", "")
 DB_URI = os.environ.get("DB_URI", "") # Warning - Give Db uri in deploy server environment variable, don't give in repo.
 DB_NAME = os.environ.get("DB_NAME", "vjsavecontentbot")
 
+# Your Topic ID (Thread ID) in the destination group where bot should send content.
+# Leave empty if you don't use forum topics.
+# To get topic id: right-click any message in the topic → Copy Link → it ends with /<topic_id>
+TOPIC_ID = int(os.environ.get("TOPIC_ID", "0")) or None
+
+# If True, bot will send content back to the SAME topic it came from (recommended for topic groups).
+# If False, bot will send all content to the TOPIC_ID set above (or general chat).
+PRESERVE_TOPIC = bool(os.environ.get("PRESERVE_TOPIC", True))
+
 # Increase time as much as possible to avoid floodwait, spamming and tg account ban issues.
 WAITING_TIME = int(os.environ.get("WAITING_TIME", "50")) # time in seconds
 
