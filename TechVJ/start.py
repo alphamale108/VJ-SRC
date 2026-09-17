@@ -413,11 +413,25 @@ async def save(client: Client, message: Message):
                     continue
 
                 # =========================
+                # CHECK IF MESSAGE EXISTS
+                # =========================
+
+                if msg is None or getattr(msg, "empty", True):
+                    failed_count += 1
+                    errors.append(f"Message {msgid}: not found or empty")
+                    if ERROR_MESSAGE == True:
+                        await client.send_message(
+                            message.chat.id,
+                            f"⚠️ Message {msgid} not found or empty. Skipping.",
+                            reply_to_message_id=message.id
+                        )
+                    continue
+
+                # =========================
                 # COPY PUBLIC MESSAGE (with topic support)
                 # =========================
 
                 try:
-                    # Determine which topic to send to
                     if PRESERVE_TOPIC:
                         topic_id = getattr(msg, "message_thread_id", None)
                     else:
@@ -523,7 +537,11 @@ async def handle_private(client: Client, acc, message: Message, chatid, msgid: i
 
     msg: Message = await acc.get_messages(chatid, msgid)
 
-    if msg.empty:
+    # =========================
+    # CHECK IF MESSAGE EXISTS
+    # =========================
+
+    if msg is None or getattr(msg, "empty", True):
         return
 
     msg_type = get_message_type(msg)
