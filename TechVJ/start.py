@@ -25,7 +25,9 @@ from config import (
     LOGIN_SYSTEM,
     STRING_SESSION,
     CHANNEL_ID,
-    WAITING_TIME
+    WAITING_TIME,
+    TOPIC_ID,          # ← ADD
+    PRESERVE_TOPIC     # ← ADD
 )
 
 from database.db import db
